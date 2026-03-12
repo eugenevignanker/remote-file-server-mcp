@@ -1,0 +1,57 @@
+import json
+
+import smbclient
+
+from smb.helpers import smb_path
+from utils.logger import audit
+from utils.validators import check_filename_denylist, safe_relative_path, sanitised_error
+
+
+def register(mcp) -> None:
+    @mcp.tool()
+    def list_files(path: str = "") -> str:
+        """
+        List files and directories at the given path on the SMB share.
+
+        Args:
+            path: Relative path within the share (empty string = root of share).
+                  Forward or back slashes are both accepted.
+                  Parent directory traversal (..) is not permitted.
+
+        Returns:
+            JSON array of objects with keys: name, type ("file"|"directory"), size (bytes, null for dirs).
+        """
+        try:
+            relative = safe_relative_path(path)
+        except ValueError as exc:
+            audit("list_files", path, "denied", reason=str(exc))
+            return json.dumps({"error": str(exc)})
+
+        smb_dir = smb_path(relative)
+        try:
+            entries: list[dict[str, object]] = []
+            for entry in sorted(
+                smbclient.scandir(smb_dir),
+                key=lambda e: (not e.is_dir(), e.name.lower()),
+            ):
+                # Skip denied filenames silently in listings (don't reveal they exist)
+                try:
+                    check_filename_denylist(entry.name)
+                except ValueError:
+                    continue
+
+                entries.append(
+                    {
+                        "name": entry.name,
+                        "type": "directory" if entry.is_dir() else "file",
+                        "size": None if entry.is_dir() else entry.stat().st_size,
+                    }
+                )
+            audit("list_files", relative, "success", entry_count=len(entries))
+            return json.dumps(entries, indent=2)
+        except ValueError as exc:
+            audit("list_files", relative, "denied", reason=str(exc))
+            return json.dumps({"error": str(exc)})
+        except Exception as exc:
+            audit("list_files", relative, "error")
+            return sanitised_error(exc)
