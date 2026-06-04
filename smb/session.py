@@ -2,14 +2,15 @@ import sys
 
 import smbclient
 
-from config import SMB_HOST, SMB_PORT, SMB_USERNAME, SMB_PASSWORD, SMB_SHARE, SMB_ENCRYPT
+from config import SMB_HOST, SMB_PORT, SMB_USERNAME, SMB_PASSWORD, SMB_SHARE, SMB_ENCRYPT, SMB_DOMAIN
 from utils.logger import log
 
 
 def setup() -> None:
     smbclient.register_session(
         SMB_HOST,
-        username=SMB_USERNAME,
+        username=fr"{SMB_DOMAIN}\{SMB_USERNAME}",
+#        username=SMB_USERNAME,
         password=SMB_PASSWORD,
         port=SMB_PORT,
         require_signing=True,

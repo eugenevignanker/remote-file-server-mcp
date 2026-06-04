@@ -30,14 +30,24 @@ import tools
 from mcp.server.fastmcp import FastMCP
 from smb.session import setup
 
-mcp = FastMCP("file-server")
+mcp = FastMCP("file-server",
+               host="0.0.0.0",
+               port=8080,
+)
 
 setup()
 tools.register_all(mcp)
 
 
 def main() -> None:
-    mcp.run()
+    # mcp.run()
+#    mcp.run(
+#       transport="streamable-http",
+#       host="0.0.0.0",
+#       port=8080,
+#       path="/mcp",
+#   )
+    mcp.run(transport="streamable-http")
 
 
 if __name__ == "__main__":
