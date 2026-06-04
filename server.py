@@ -7,6 +7,7 @@ Configure via environment variables:
   SMB_USERNAME      - Username (required)
   SMB_PASSWORD      - Password (required)
   SMB_DOMAIN        - Domain for SMB authentication (optional)
+  SMB_SUBFOLDER     - Subfolder within the share to expose as the root (optional)
   SMB_PORT          - Port (default: 445)
   SMB_ENCRYPT       - Enable SMB encryption: "true"/"false" (default: false)
   MAX_FILE_SIZE_MB  - Maximum file size to read in MB (default: 10)

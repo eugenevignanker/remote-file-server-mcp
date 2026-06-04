@@ -12,13 +12,15 @@
 #     -e SMB_USERNAME=my_user \
 #     -e SMB_PASSWORD=my_password \
 #     -e SMB_DOMAIN=MYDOMAIN \
+#     -e SMB_SUBFOLDER=department/reports \
 #     file-server-mcp
 #
 # Or use --env-file to keep secrets out of shell history:
 #   docker run --rm -i --env-file .env file-server-mcp
 #
-# Optional env vars: SMB_DOMAIN, SMB_PORT, SMB_ENCRYPT, MAX_FILE_SIZE_MB,
-#                    ALLOWED_PATHS, AUDIT_LOG_PATH, READ_PREVIEW_LINES
+# Optional env vars: SMB_DOMAIN, SMB_SUBFOLDER, SMB_PORT, SMB_ENCRYPT,
+#                    MAX_FILE_SIZE_MB, ALLOWED_PATHS, AUDIT_LOG_PATH,
+#                    READ_PREVIEW_LINES
 # ---------------------------------------------------------------------------
 
 FROM python:3.12-slim AS builder

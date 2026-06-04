@@ -2,16 +2,18 @@ import fnmatch
 
 import smbclient
 
-from config import SMB_HOST, SMB_SHARE
+from config import SMB_HOST, SMB_SHARE, SMB_SUBFOLDER
 from utils.validators import check_filename_denylist
 
 SHARE_ROOT_UNC = f"\\\\{SMB_HOST}\\{SMB_SHARE}"
+if SMB_SUBFOLDER:
+    SHARE_ROOT_UNC = f"{SHARE_ROOT_UNC}\\{SMB_SUBFOLDER.replace('/', chr(92))}"
 SEARCH_MAX_RESULTS = 200
 
 
 def smb_path(relative: str) -> str:
     """Build a UNC path from an already-validated relative path."""
-    base = f"\\\\{SMB_HOST}\\{SMB_SHARE}"
+    base = SHARE_ROOT_UNC
     if relative:
         return f"{base}\\{relative.replace('/', chr(92))}"
     return base

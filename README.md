@@ -2,6 +2,8 @@
 
 An [MCP (Model Context Protocol)](https://modelcontextprotocol.io) server that gives any MCP client read access to an SMB/CIFS file share. Connection credentials are passed as environment variables and never appear in tool calls or conversation history.
 
+You can optionally expose only a subfolder inside the share with `SMB_SUBFOLDER`; when set, that subfolder becomes the server's effective root.
+
 ---
 
 ## How It Works
@@ -24,6 +26,8 @@ The server runs as a subprocess managed by the MCP client. All file access is re
 | `search_files`  | `pattern`, `path` (optional), `max_depth` (optional) | Find files by glob pattern (e.g. `*.csv`). Recurses to `max_depth` (default `5`, max `10`) and returns up to `200` matches.                                                            |
 
 All paths are relative to the share root (e.g. `reports/2024/q1.xlsx`).
+
+If `SMB_SUBFOLDER` is configured, paths are instead relative to that subfolder.
 
 ---
 
@@ -91,6 +95,7 @@ docker run --rm -i \
   -e SMB_SHARE=my_share \
   -e SMB_USERNAME=my_user \
   -e SMB_PASSWORD=my_password \
+  -e SMB_SUBFOLDER=department/reports \
   file-server-mcp
 ```
 
@@ -103,6 +108,7 @@ docker run --rm -i \
   -e SMB_USERNAME=my_user \
   -e SMB_PASSWORD=my_password \
   -e SMB_DOMAIN=MYDOMAIN \
+  -e SMB_SUBFOLDER=department/reports \
   file-server-mcp
 ```
 
@@ -130,6 +136,7 @@ Add an entry under `mcpServers`.
       "env": {
         "SMB_HOST": "192.168.1.100",
         "SMB_SHARE": "my_share",
+        "SMB_SUBFOLDER": "department/reports",
         "SMB_USERNAME": "my_user",
         "SMB_PASSWORD": "my_password"
       }
@@ -149,6 +156,7 @@ Add an entry under `mcpServers`.
         "SMB_HOST": "192.168.1.100",
         "SMB_SHARE": "my_share",
         "SMB_DOMAIN": "MYDOMAIN",
+        "SMB_SUBFOLDER": "department/reports",
         "SMB_USERNAME": "my_user",
         "SMB_PASSWORD": "my_password",
         "SMB_PORT": "445",
@@ -200,6 +208,7 @@ Add a separate entry for each server with a unique key:
 | `SMB_HOST`           | Yes      | —       | IP address or hostname of the SMB server                              |
 | `SMB_SHARE`          | Yes      | —       | Share name on the server                                              |
 | `SMB_DOMAIN`         | No       | —       | Domain for SMB authentication; omit for local/server-scoped accounts  |
+| `SMB_SUBFOLDER`      | No       | —       | Subfolder within the share to expose as the server root               |
 | `SMB_USERNAME`       | Yes      | —       | Username for SMB authentication                                       |
 | `SMB_PASSWORD`       | Yes      | —       | Password for SMB authentication                                       |
 | `SMB_PORT`           | No       | `445`   | SMB port                                                              |

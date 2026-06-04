@@ -1,4 +1,5 @@
 import os
+import posixpath
 import sys
 
 from utils.logger import log
@@ -15,6 +16,11 @@ SMB_DOMAIN = os.environ.get("SMB_DOMAIN")
 SMB_USERNAME = os.environ["SMB_USERNAME"]
 SMB_PASSWORD = os.environ["SMB_PASSWORD"]
 SMB_SHARE = os.environ["SMB_SHARE"]
+_raw_subfolder = os.environ.get("SMB_SUBFOLDER", "").strip().replace("\\", "/").strip("/")
+SMB_SUBFOLDER = "" if not _raw_subfolder else posixpath.normpath(_raw_subfolder).lstrip("/")
+if SMB_SUBFOLDER.startswith(".."):
+    log.error("Invalid SMB_SUBFOLDER: must stay within the configured share.")
+    sys.exit(1)
 SMB_ENCRYPT = os.environ.get("SMB_ENCRYPT", "false").lower() == "true"
 MAX_FILE_SIZE_BYTES = int(os.environ.get("MAX_FILE_SIZE_MB", "10")) * 1024 * 1024
 READ_PREVIEW_LINES = int(os.environ.get("READ_PREVIEW_LINES", "100"))

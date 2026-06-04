@@ -3,6 +3,7 @@ import sys
 import smbclient
 
 from config import SMB_HOST, SMB_PORT, SMB_USERNAME, SMB_PASSWORD, SMB_SHARE, SMB_ENCRYPT, SMB_DOMAIN
+from smb.helpers import SHARE_ROOT_UNC
 from utils.logger import log
 
 
@@ -25,15 +26,15 @@ def _check_connection() -> None:
     Exits the process with a clear error message if the server is unreachable or
     authentication fails.
     """
-    share_root = f"\\\\{SMB_HOST}\\{SMB_SHARE}"
+    share_root = SHARE_ROOT_UNC
     try:
         smbclient.scandir(share_root)
-        log.info("SMB session ready — connected to \\\\%s\\%s", SMB_HOST, SMB_SHARE)
+        log.info("SMB session ready — connected to %s", share_root)
     except Exception as exc:
         exc_type = type(exc).__name__
         if "LogonFailure" in exc_type or "AccessDenied" in exc_type:
             log.error(
-                "SMB authentication failed. Check SMB_USERNAME and SMB_PASSWORD. (%s)",
+                "SMB authentication failed. Check SMB_USERNAME, SMB_PASSWORD, and SMB_DOMAIN if set. (%s)",
                 exc_type,
             )
         elif "ConnectionRefused" in exc_type or "Timeout" in exc_type or "NoSuchServer" in exc_type:
@@ -43,7 +44,7 @@ def _check_connection() -> None:
             )
         elif "ObjectNotFound" in exc_type or "BadNetworkName" in exc_type:
             log.error(
-                "SMB share not found. Check SMB_SHARE. (%s)", exc_type,
+                "SMB share or subfolder not found. Check SMB_SHARE and SMB_SUBFOLDER. (%s)", exc_type,
             )
         else:
             log.error("SMB connection check failed: %s — %s", exc_type, exc)
