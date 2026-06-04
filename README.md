@@ -83,7 +83,28 @@ uv run file-server-mcp
 docker build -t file-server-mcp .
 ```
 
-See `Dockerfile` for runtime usage.
+Run it with the required SMB settings:
+
+```bash
+docker run --rm -i \
+  -e SMB_HOST=192.168.1.100 \
+  -e SMB_SHARE=my_share \
+  -e SMB_USERNAME=my_user \
+  -e SMB_PASSWORD=my_password \
+  file-server-mcp
+```
+
+If your SMB server requires a Windows domain, also pass `SMB_DOMAIN`:
+
+```bash
+docker run --rm -i \
+  -e SMB_HOST=192.168.1.100 \
+  -e SMB_SHARE=my_share \
+  -e SMB_USERNAME=my_user \
+  -e SMB_PASSWORD=my_password \
+  -e SMB_DOMAIN=MYDOMAIN \
+  file-server-mcp
+```
 
 ---
 
@@ -127,6 +148,7 @@ Add an entry under `mcpServers`.
       "env": {
         "SMB_HOST": "192.168.1.100",
         "SMB_SHARE": "my_share",
+        "SMB_DOMAIN": "MYDOMAIN",
         "SMB_USERNAME": "my_user",
         "SMB_PASSWORD": "my_password",
         "SMB_PORT": "445",
@@ -177,6 +199,7 @@ Add a separate entry for each server with a unique key:
 | -------------------- | -------- | ------- | --------------------------------------------------------------------- |
 | `SMB_HOST`           | Yes      | —       | IP address or hostname of the SMB server                              |
 | `SMB_SHARE`          | Yes      | —       | Share name on the server                                              |
+| `SMB_DOMAIN`         | No       | —       | Domain for SMB authentication; omit for local/server-scoped accounts  |
 | `SMB_USERNAME`       | Yes      | —       | Username for SMB authentication                                       |
 | `SMB_PASSWORD`       | Yes      | —       | Password for SMB authentication                                       |
 | `SMB_PORT`           | No       | `445`   | SMB port                                                              |

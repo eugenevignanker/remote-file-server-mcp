@@ -7,10 +7,10 @@ from utils.logger import log
 
 
 def setup() -> None:
+    username = fr"{SMB_DOMAIN}\{SMB_USERNAME}" if SMB_DOMAIN else SMB_USERNAME
     smbclient.register_session(
         SMB_HOST,
-        username=fr"{SMB_DOMAIN}\{SMB_USERNAME}",
-#        username=SMB_USERNAME,
+        username=username,
         password=SMB_PASSWORD,
         port=SMB_PORT,
         require_signing=True,

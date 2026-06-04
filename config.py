@@ -3,7 +3,7 @@ import sys
 
 from utils.logger import log
 
-_REQUIRED_ENV = ["SMB_HOST", "SMB_SHARE", "SMB_DOMAIN", "SMB_USERNAME", "SMB_PASSWORD"]
+_REQUIRED_ENV = ["SMB_HOST", "SMB_SHARE", "SMB_USERNAME", "SMB_PASSWORD"]
 _missing = [v for v in _REQUIRED_ENV if not os.environ.get(v)]
 if _missing:
     log.error("Missing required environment variables: %s", ", ".join(_missing))
@@ -11,7 +11,7 @@ if _missing:
 
 SMB_HOST = os.environ["SMB_HOST"]
 SMB_PORT = int(os.environ.get("SMB_PORT", "445"))
-SMB_DOMAIN = os.environ["SMB_DOMAIN"]
+SMB_DOMAIN = os.environ.get("SMB_DOMAIN")
 SMB_USERNAME = os.environ["SMB_USERNAME"]
 SMB_PASSWORD = os.environ["SMB_PASSWORD"]
 SMB_SHARE = os.environ["SMB_SHARE"]
