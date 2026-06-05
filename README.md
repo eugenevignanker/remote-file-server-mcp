@@ -1,6 +1,6 @@
 # remote-file-server-mcp
 
-An [MCP (Model Context Protocol)](https://modelcontextprotocol.io) server that gives any MCP client read access to an SMB/CIFS file share. Connection credentials are passed as environment variables and never appear in tool calls or conversation history.
+An [MCP (Model Context Protocol)](https://modelcontextprotocol.io) server that gives any MCP client controlled access to an SMB/CIFS file share. Connection credentials are passed as environment variables and never appear in tool calls or conversation history.
 
 You can optionally expose only a subfolder inside the share with `SMB_SUBFOLDER`; when set, that subfolder becomes the server's effective root.
 
@@ -12,7 +12,7 @@ You can optionally expose only a subfolder inside the share with `SMB_SUBFOLDER`
 MCP Client  ──(MCP/stdio)──►  file-server-mcp  ──(SMB/CIFS)──►  File Server
 ```
 
-The server runs as a subprocess managed by the MCP client. All file access is read-only. SMB packet signing is enforced by default; full encryption is available via an env var.
+The server runs as a subprocess managed by the MCP client. SMB packet signing is enforced by default; full encryption is available via an env var.
 
 ---
 
@@ -22,8 +22,13 @@ The server runs as a subprocess managed by the MCP client. All file access is re
 | --------------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `list_files`    | `path` (optional)                                    | List files and directories at a path. Empty path = share root. Denied filenames are omitted from results. Returns JSON.                                                                |
 | `read_file`     | `path`                                               | Return text contents of a file. Oversized files return a preview (first N lines) or hard-error if `READ_PREVIEW_LINES=0`. Binary Office/PDF files are parsed into text when supported. |
-| `get_file_info` | `path`                                               | Return metadata (size, type, timestamps) for a file or directory without reading its contents.                                                                                         |
+| `get_file_info` | `path`                                               | Return metadata for a file or directory, including size, timestamps, type, and permission bits when available.                                                                         |
 | `search_files`  | `pattern`, `path` (optional), `max_depth` (optional) | Find files by glob pattern (e.g. `*.csv`). Recurses to `max_depth` (default `5`, max `10`) and returns up to `200` matches.                                                            |
+| `write_file`    | `path`, `content`, `overwrite` (optional)            | Write UTF-8 text content to a file. Creates parent directories as needed.                                                                                                               |
+| `delete_path`   | `path`, `recursive` (optional)                       | Delete a file or directory. Recursive deletion is supported for directories.                                                                                                            |
+| `rename_path`   | `source_path`, `destination_path`, `overwrite` (optional) | Rename or move a file or directory within the exposed root.                                                                                                                         |
+| `copy_path`     | `source_path`, `destination_path`, `overwrite` (optional) | Copy a file or directory within the exposed root.                                                                                                                                   |
+| `make_directory`| `path`, `exist_ok` (optional)                        | Create a directory path within the exposed root.                                                                                                                                        |
 
 All paths are relative to the share root (e.g. `reports/2024/q1.xlsx`).
 
@@ -36,7 +41,7 @@ If `SMB_SUBFOLDER` is configured, paths are instead relative to that subfolder.
 - **SMB packet signing** is required on all connections (protects against tampering in transit).
 - **Encryption** can be enabled via `SMB_ENCRYPT=true` for end-to-end SMB encryption.
 - **Path traversal** is blocked — `..` segments are rejected before any SMB call is made.
-- **Sensitive files** (`.env`, `*.key`, `*.pem`, `id_rsa`, `*.pfx`, `*.p12`, `*.token`, `.netrc`, `.htpasswd`, keystore files, etc.) are never listed or read.
+- **Sensitive files** (`.env`, `*.key`, `*.pem`, `id_rsa`, `*.pfx`, `*.p12`, `*.token`, `.netrc`, `.htpasswd`, keystore files, etc.) are blocked from file-level operations.
 - **File size limit** prevents reading files that would exceed the context window.
 - **Allowed paths** can restrict the server to specific subdirectories only.
 - **Audit logging** records every tool call (operation, path, outcome, size) in JSON — never file contents.
@@ -111,6 +116,17 @@ docker run --rm -i \
   -e SMB_SUBFOLDER=department/reports \
   file-server-mcp
 ```
+
+### Smoke Tests
+
+The repository includes simple end-to-end test scripts for a running MCP HTTP endpoint:
+
+```bash
+python3 tests/test_read_write_list.py <mcp-endpoint-url>
+python3 tests/test_write_delete_list.py <mcp-endpoint-url>
+```
+
+Each script accepts the MCP endpoint URL as its only argument.
 
 ---
 

@@ -1,5 +1,6 @@
 import datetime
 import json
+import stat as statmod
 import posixpath
 
 import smbclient
@@ -48,6 +49,18 @@ def register(mcp) -> None:
                 "created_time": datetime.datetime.fromtimestamp(
                     st.st_ctime, tz=datetime.timezone.utc
                 ).isoformat(),
+                "permissions": {
+                    "mode": oct(st.st_mode),
+                    "owner_read": bool(st.st_mode & statmod.S_IRUSR),
+                    "owner_write": bool(st.st_mode & statmod.S_IWUSR),
+                    "owner_execute": bool(st.st_mode & statmod.S_IXUSR),
+                    "group_read": bool(st.st_mode & statmod.S_IRGRP),
+                    "group_write": bool(st.st_mode & statmod.S_IWGRP),
+                    "group_execute": bool(st.st_mode & statmod.S_IXGRP),
+                    "other_read": bool(st.st_mode & statmod.S_IROTH),
+                    "other_write": bool(st.st_mode & statmod.S_IWOTH),
+                    "other_execute": bool(st.st_mode & statmod.S_IXOTH),
+                },
             }
             audit("get_file_info", relative, "success", file_size_bytes=st.st_size)
             return json.dumps(info, indent=2)
