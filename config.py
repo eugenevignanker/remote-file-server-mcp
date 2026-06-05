@@ -24,3 +24,20 @@ if SMB_SUBFOLDER.startswith(".."):
 SMB_ENCRYPT = os.environ.get("SMB_ENCRYPT", "false").lower() == "true"
 MAX_FILE_SIZE_BYTES = int(os.environ.get("MAX_FILE_SIZE_MB", "10")) * 1024 * 1024
 READ_PREVIEW_LINES = int(os.environ.get("READ_PREVIEW_LINES", "100"))
+
+log.info(
+    "Startup configuration: SMB_HOST=%r SMB_PORT=%d SMB_SHARE=%r SMB_SUBFOLDER=%r "
+    "SMB_DOMAIN=%r SMB_USERNAME=%r SMB_ENCRYPT=%r MAX_FILE_SIZE_MB=%d "
+    "READ_PREVIEW_LINES=%d ALLOWED_PATHS=%r AUDIT_LOG_PATH=%r",
+    SMB_HOST,
+    SMB_PORT,
+    SMB_SHARE,
+    SMB_SUBFOLDER,
+    SMB_DOMAIN,
+    SMB_USERNAME,
+    SMB_ENCRYPT,
+    MAX_FILE_SIZE_BYTES // (1024 * 1024),
+    READ_PREVIEW_LINES,
+    os.environ.get("ALLOWED_PATHS", ""),
+    os.environ.get("AUDIT_LOG_PATH", ""),
+)
