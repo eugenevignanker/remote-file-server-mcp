@@ -5,6 +5,7 @@ import smbclient
 
 from config import MAX_FILE_SIZE_BYTES, READ_PREVIEW_LINES
 from smb.helpers import smb_path
+from smb.session import run_with_session_retry
 from utils.document_parsers import extract_document_text
 from utils.logger import audit
 from utils.validators import check_filename_denylist, safe_relative_path, sanitised_error
@@ -40,54 +41,57 @@ def register(mcp) -> None:
 
         smb_file = smb_path(relative)
         try:
-            stat = smbclient.stat(smb_file)
-            oversized = stat.st_size > MAX_FILE_SIZE_BYTES
+            def _read() -> str:
+                stat = smbclient.stat(smb_file)
+                oversized = stat.st_size > MAX_FILE_SIZE_BYTES
 
-            if oversized and READ_PREVIEW_LINES == 0:
-                audit("read_file", relative, "denied",
-                      reason="file_too_large", file_size_bytes=stat.st_size)
-                return json.dumps({
-                    "error": (
-                        f"File is too large to read "
-                        f"({stat.st_size // (1024 * 1024)} MB). "
-                        f"Maximum allowed size is {MAX_FILE_SIZE_BYTES // (1024 * 1024)} MB."
-                    )
-                })
-
-            try:
-                with smbclient.open_file(smb_file, mode="r", encoding="utf-8") as f:
-                    if oversized:
-                        lines: list[str] = []
-                        for _ in range(READ_PREVIEW_LINES):
-                            line = f.readline()
-                            if not line:
-                                break
-                            lines.append(line)
-                        content = "".join(lines)
-                        truncation_notice = (
-                            f"\n\n[Truncated — showing first {READ_PREVIEW_LINES} lines of a "
-                            f"{stat.st_size // (1024 * 1024)} MB file. "
-                            f"Use get_file_info() to inspect the full size.]"
+                if oversized and READ_PREVIEW_LINES == 0:
+                    audit("read_file", relative, "denied",
+                          reason="file_too_large", file_size_bytes=stat.st_size)
+                    return json.dumps({
+                        "error": (
+                            f"File is too large to read "
+                            f"({stat.st_size // (1024 * 1024)} MB). "
+                            f"Maximum allowed size is {MAX_FILE_SIZE_BYTES // (1024 * 1024)} MB."
                         )
-                        audit("read_file", relative, "truncated",
-                              file_size_bytes=stat.st_size, preview_lines=READ_PREVIEW_LINES)
-                        return content + truncation_notice
-                    else:
+                    })
+
+                try:
+                    with smbclient.open_file(smb_file, mode="r", encoding="utf-8") as f:
+                        if oversized:
+                            lines: list[str] = []
+                            for _ in range(READ_PREVIEW_LINES):
+                                line = f.readline()
+                                if not line:
+                                    break
+                                lines.append(line)
+                            content = "".join(lines)
+                            truncation_notice = (
+                                f"\n\n[Truncated — showing first {READ_PREVIEW_LINES} lines of a "
+                                f"{stat.st_size // (1024 * 1024)} MB file. "
+                                f"Use get_file_info() to inspect the full size.]"
+                            )
+                            audit("read_file", relative, "truncated",
+                                  file_size_bytes=stat.st_size, preview_lines=READ_PREVIEW_LINES)
+                            return content + truncation_notice
+
                         content = f.read()
                         audit("read_file", relative, "success",
                               file_size_bytes=stat.st_size, encoding="utf-8")
                         return content
-            except UnicodeDecodeError:
-                with smbclient.open_file(smb_file, mode="rb") as f:
-                    data = f.read()
-                extracted = extract_document_text(filename, data)
-                if extracted is not None:
+                except UnicodeDecodeError:
+                    with smbclient.open_file(smb_file, mode="rb") as f:
+                        data = f.read()
+                    extracted = extract_document_text(filename, data)
+                    if extracted is not None:
+                        audit("read_file", relative, "success",
+                              file_size_bytes=stat.st_size, encoding="document")
+                        return extracted
                     audit("read_file", relative, "success",
-                          file_size_bytes=stat.st_size, encoding="document")
-                    return extracted
-                audit("read_file", relative, "success",
-                      file_size_bytes=stat.st_size, encoding="binary")
-                return f"[Binary file – {len(data):,} bytes, cannot display as text]"
+                          file_size_bytes=stat.st_size, encoding="binary")
+                    return f"[Binary file – {len(data):,} bytes, cannot display as text]"
+
+            return run_with_session_retry("read_file", _read)
 
         except ValueError as exc:
             audit("read_file", relative, "denied", reason=str(exc))

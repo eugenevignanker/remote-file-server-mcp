@@ -8,7 +8,16 @@ from utils.logger import log
 
 
 def setup() -> None:
-    username = fr"{SMB_DOMAIN}\{SMB_USERNAME}" if SMB_DOMAIN else SMB_USERNAME
+    _register_session()
+    _check_connection()
+
+
+def _session_username() -> str:
+    return fr"{SMB_DOMAIN}\{SMB_USERNAME}" if SMB_DOMAIN else SMB_USERNAME
+
+
+def _register_session() -> None:
+    username = _session_username()
     smbclient.register_session(
         SMB_HOST,
         username=username,
@@ -17,7 +26,54 @@ def setup() -> None:
         require_signing=True,
         encrypt=SMB_ENCRYPT,
     )
-    _check_connection()
+    log.info(
+        "Registered SMB session for host=%r share=%r user=%r domain=%r",
+        SMB_HOST,
+        SMB_SHARE,
+        SMB_USERNAME,
+        SMB_DOMAIN,
+    )
+
+
+def _reset_connection_cache() -> None:
+    reset_connection_cache = getattr(smbclient, "reset_connection_cache", None)
+    if reset_connection_cache:
+        reset_connection_cache()
+
+
+def _is_retryable_session_error(exc: Exception) -> bool:
+    exc_type = type(exc).__name__
+    message = str(exc)
+    retry_markers = (
+        "SMBAuthenticationError",
+        "SpnegoError",
+        "BadMechanismError",
+        "NotConnected",
+        "ConnectionReset",
+        "ConnectionDisconnected",
+        "BrokenPipe",
+        "LogonFailure",
+        "STATUS_NETWORK_SESSION_EXPIRED",
+        "STATUS_USER_SESSION_DELETED",
+    )
+    return any(marker in exc_type or marker in message for marker in retry_markers)
+
+
+def run_with_session_retry(operation: str, action):
+    try:
+        return action()
+    except Exception as exc:
+        if not _is_retryable_session_error(exc):
+            raise
+
+        log.warning(
+            "Retrying SMB operation %s after resetting cached SMB connections: %s",
+            operation,
+            exc,
+        )
+        _reset_connection_cache()
+        _register_session()
+        return action()
 
 
 def _check_connection() -> None:

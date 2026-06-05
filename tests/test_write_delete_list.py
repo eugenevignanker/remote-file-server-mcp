@@ -6,6 +6,17 @@ import uuid
 from mcp_http_client import MCPError, MCPHttpClient
 
 
+def decode_json_payload(tool_name: str, text: str):
+    try:
+        payload = json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise MCPError(f"Tool {tool_name!r} did not return JSON: {text!r}") from exc
+
+    if isinstance(payload, dict) and "error" in payload:
+        raise MCPError(f"Tool {tool_name!r} failed: {payload['error']}")
+    return payload
+
+
 def main() -> int:
     if len(sys.argv) != 2:
         print("Usage: test_write_delete_list.py <mcp-endpoint-url>", file=sys.stderr)
@@ -31,7 +42,9 @@ def main() -> int:
         print(client.call_tool_text("write_file", {"path": file_path, "content": "delete me"}))
 
         print(f"Verifying file appears in {base_dir}")
-        before_delete = json.loads(client.call_tool_text("list_files", {"path": base_dir}))
+        before_delete = decode_json_payload("list_files", client.call_tool_text("list_files", {"path": base_dir}))
+        if not isinstance(before_delete, list):
+            raise MCPError(f"Tool 'list_files' returned unexpected payload: {before_delete}")
         if "delete-me.txt" not in {entry["name"] for entry in before_delete}:
             raise MCPError(f"delete-me.txt not present after write: {before_delete}")
 
@@ -39,7 +52,9 @@ def main() -> int:
         print(client.call_tool_text("delete_path", {"path": file_path}))
 
         print(f"Verifying file is absent from {base_dir}")
-        after_delete = json.loads(client.call_tool_text("list_files", {"path": base_dir}))
+        after_delete = decode_json_payload("list_files", client.call_tool_text("list_files", {"path": base_dir}))
+        if not isinstance(after_delete, list):
+            raise MCPError(f"Tool 'list_files' returned unexpected payload: {after_delete}")
         if "delete-me.txt" in {entry["name"] for entry in after_delete}:
             raise MCPError(f"delete-me.txt still present after delete: {after_delete}")
 

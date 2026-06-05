@@ -3,6 +3,7 @@ import json
 import smbclient
 
 from smb.helpers import SEARCH_MAX_RESULTS, collect_matches, smb_path
+from smb.session import run_with_session_retry
 from utils.logger import audit
 from utils.validators import safe_relative_path, sanitised_error
 
@@ -45,28 +46,31 @@ def register(mcp) -> None:
         base_depth = smb_base.count("\\")
 
         try:
-            results: list[dict[str, object]] = []
+            def _search() -> str:
+                results: list[dict[str, object]] = []
 
-            for dirpath, dirnames, filenames in smbclient.walk(smb_base):
-                current_depth = dirpath.count("\\") - base_depth
-                if current_depth >= max_depth:
-                    dirnames.clear()  # prevent walk from descending further
-                    continue
+                for dirpath, dirnames, filenames in smbclient.walk(smb_base):
+                    current_depth = dirpath.count("\\") - base_depth
+                    if current_depth >= max_depth:
+                        dirnames.clear()
+                        continue
 
-                results.extend(collect_matches(dirpath, filenames, pattern))
+                    results.extend(collect_matches(dirpath, filenames, pattern))
 
-                if len(results) >= SEARCH_MAX_RESULTS:
-                    results = results[:SEARCH_MAX_RESULTS]
-                    audit("search_files", relative, "success",
-                          pattern=pattern, result_count=len(results), capped=True)
-                    return json.dumps({
-                        "results": results,
-                        "note": f"Result limit of {SEARCH_MAX_RESULTS} reached. Narrow your search.",
-                    }, indent=2)
+                    if len(results) >= SEARCH_MAX_RESULTS:
+                        results[:] = results[:SEARCH_MAX_RESULTS]
+                        audit("search_files", relative, "success",
+                              pattern=pattern, result_count=len(results), capped=True)
+                        return json.dumps({
+                            "results": results,
+                            "note": f"Result limit of {SEARCH_MAX_RESULTS} reached. Narrow your search.",
+                        }, indent=2)
 
-            audit("search_files", relative, "success",
-                  pattern=pattern, result_count=len(results), capped=False)
-            return json.dumps(results, indent=2)
+                audit("search_files", relative, "success",
+                      pattern=pattern, result_count=len(results), capped=False)
+                return json.dumps(results, indent=2)
+
+            return run_with_session_retry("search_files", _search)
 
         except ValueError as exc:
             audit("search_files", relative, "denied", reason=str(exc), pattern=pattern)

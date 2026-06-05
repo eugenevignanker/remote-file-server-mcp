@@ -4,6 +4,7 @@ import posixpath
 import smbclient
 
 from smb.helpers import smb_path
+from smb.session import run_with_session_retry
 from utils.logger import audit
 from utils.validators import check_filename_denylist, safe_relative_path, sanitised_error
 
@@ -39,23 +40,26 @@ def register(mcp) -> None:
         destination_parent = posixpath.dirname(destination_relative)
 
         try:
-            if destination_parent:
-                smbclient.makedirs(smb_path(destination_parent), exist_ok=True)
+            def _rename() -> str:
+                if destination_parent:
+                    smbclient.makedirs(smb_path(destination_parent), exist_ok=True)
 
-            if overwrite:
-                smbclient.replace(source_unc, destination_unc)
-            else:
-                if smbclient.path.exists(destination_unc):
-                    audit("rename_path", source_relative, "denied", destination=destination_relative, reason="exists")
-                    return json.dumps({"error": "Destination already exists."})
-                smbclient.rename(source_unc, destination_unc)
+                if overwrite:
+                    smbclient.replace(source_unc, destination_unc)
+                else:
+                    if smbclient.path.exists(destination_unc):
+                        audit("rename_path", source_relative, "denied", destination=destination_relative, reason="exists")
+                        return json.dumps({"error": "Destination already exists."})
+                    smbclient.rename(source_unc, destination_unc)
 
-            audit("rename_path", source_relative, "success", destination=destination_relative, overwrite=overwrite)
-            return json.dumps({
-                "source_path": source_relative,
-                "destination_path": destination_relative,
-                "overwritten": overwrite,
-            }, indent=2)
+                audit("rename_path", source_relative, "success", destination=destination_relative, overwrite=overwrite)
+                return json.dumps({
+                    "source_path": source_relative,
+                    "destination_path": destination_relative,
+                    "overwritten": overwrite,
+                }, indent=2)
+
+            return run_with_session_retry("rename_path", _rename)
         except Exception as exc:
             audit("rename_path", source_relative, "error", destination=destination_relative, overwrite=overwrite)
             return sanitised_error(exc)

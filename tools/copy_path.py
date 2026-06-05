@@ -4,6 +4,7 @@ import posixpath
 import smbclient
 
 from smb.helpers import smb_path
+from smb.session import run_with_session_retry
 from utils.logger import audit
 from utils.validators import check_filename_denylist, safe_relative_path, sanitised_error
 
@@ -78,31 +79,34 @@ def register(mcp) -> None:
         destination_parent = posixpath.dirname(destination_relative)
 
         try:
-            if destination_parent:
-                smbclient.makedirs(smb_path(destination_parent), exist_ok=True)
+            def _copy() -> str:
+                if destination_parent:
+                    smbclient.makedirs(smb_path(destination_parent), exist_ok=True)
 
-            if smbclient.path.isdir(source_unc):
-                copied_files = _copy_directory(source_unc, destination_unc, overwrite)
-                result = {
-                    "source_path": source_relative,
-                    "destination_path": destination_relative,
-                    "copied_type": "directory",
-                    "files_copied": copied_files,
-                }
-            else:
-                if not overwrite and smbclient.path.exists(destination_unc):
-                    audit("copy_path", source_relative, "denied", destination=destination_relative, reason="exists")
-                    return json.dumps({"error": "Destination already exists."})
-                bytes_copied = _copy_file(source_unc, destination_unc)
-                result = {
-                    "source_path": source_relative,
-                    "destination_path": destination_relative,
-                    "copied_type": "file",
-                    "bytes_copied": bytes_copied,
-                }
+                if smbclient.path.isdir(source_unc):
+                    copied_files = _copy_directory(source_unc, destination_unc, overwrite)
+                    result = {
+                        "source_path": source_relative,
+                        "destination_path": destination_relative,
+                        "copied_type": "directory",
+                        "files_copied": copied_files,
+                    }
+                else:
+                    if not overwrite and smbclient.path.exists(destination_unc):
+                        audit("copy_path", source_relative, "denied", destination=destination_relative, reason="exists")
+                        return json.dumps({"error": "Destination already exists."})
+                    bytes_copied = _copy_file(source_unc, destination_unc)
+                    result = {
+                        "source_path": source_relative,
+                        "destination_path": destination_relative,
+                        "copied_type": "file",
+                        "bytes_copied": bytes_copied,
+                    }
 
-            audit("copy_path", source_relative, "success", destination=destination_relative, overwrite=overwrite)
-            return json.dumps(result, indent=2)
+                audit("copy_path", source_relative, "success", destination=destination_relative, overwrite=overwrite)
+                return json.dumps(result, indent=2)
+
+            return run_with_session_retry("copy_path", _copy)
         except FileExistsError:
             audit("copy_path", source_relative, "denied", destination=destination_relative, reason="exists")
             return json.dumps({"error": "Destination already exists."})

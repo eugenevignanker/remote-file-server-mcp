@@ -3,6 +3,7 @@ import json
 import smbclient
 
 from smb.helpers import smb_path
+from smb.session import run_with_session_retry
 from utils.logger import audit
 from utils.validators import check_filename_denylist, safe_relative_path, sanitised_error
 
@@ -30,23 +31,26 @@ def register(mcp) -> None:
         smb_dir = smb_path(relative)
         try:
             entries: list[dict[str, object]] = []
-            for entry in sorted(
-                smbclient.scandir(smb_dir),
-                key=lambda e: (not e.is_dir(), e.name.lower()),
-            ):
-                # Skip denied filenames silently in listings (don't reveal they exist)
-                try:
-                    check_filename_denylist(entry.name)
-                except ValueError:
-                    continue
+            def _scan() -> None:
+                for entry in sorted(
+                    smbclient.scandir(smb_dir),
+                    key=lambda e: (not e.is_dir(), e.name.lower()),
+                ):
+                    # Skip denied filenames silently in listings (don't reveal they exist)
+                    try:
+                        check_filename_denylist(entry.name)
+                    except ValueError:
+                        continue
 
-                entries.append(
-                    {
-                        "name": entry.name,
-                        "type": "directory" if entry.is_dir() else "file",
-                        "size": None if entry.is_dir() else entry.stat().st_size,
-                    }
-                )
+                    entries.append(
+                        {
+                            "name": entry.name,
+                            "type": "directory" if entry.is_dir() else "file",
+                            "size": None if entry.is_dir() else entry.stat().st_size,
+                        }
+                    )
+
+            run_with_session_retry("list_files", _scan)
             audit("list_files", relative, "success", entry_count=len(entries))
             return json.dumps(entries, indent=2)
         except ValueError as exc:

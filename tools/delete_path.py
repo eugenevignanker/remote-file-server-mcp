@@ -4,6 +4,7 @@ import posixpath
 import smbclient
 
 from smb.helpers import smb_path
+from smb.session import run_with_session_retry
 from utils.logger import audit
 from utils.validators import check_filename_denylist, safe_relative_path, sanitised_error
 
@@ -43,19 +44,22 @@ def register(mcp) -> None:
 
         smb_target = smb_path(relative)
         try:
-            if smbclient.path.isdir(smb_target):
-                if recursive:
-                    _delete_directory_recursive(smb_target)
+            def _delete() -> str:
+                if smbclient.path.isdir(smb_target):
+                    if recursive:
+                        _delete_directory_recursive(smb_target)
+                    else:
+                        smbclient.rmdir(smb_target)
                 else:
-                    smbclient.rmdir(smb_target)
-            else:
-                smbclient.remove(smb_target)
+                    smbclient.remove(smb_target)
 
-            audit("delete_path", relative, "success", recursive=recursive)
-            return json.dumps({
-                "path": relative,
-                "deleted": True,
-            }, indent=2)
+                audit("delete_path", relative, "success", recursive=recursive)
+                return json.dumps({
+                    "path": relative,
+                    "deleted": True,
+                }, indent=2)
+
+            return run_with_session_retry("delete_path", _delete)
         except Exception as exc:
             audit("delete_path", relative, "error", recursive=recursive)
             return sanitised_error(exc)

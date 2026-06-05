@@ -3,6 +3,7 @@ import json
 import smbclient
 
 from smb.helpers import smb_path
+from smb.session import run_with_session_retry
 from utils.logger import audit
 from utils.validators import safe_relative_path, sanitised_error
 
@@ -31,12 +32,15 @@ def register(mcp) -> None:
 
         smb_dir = smb_path(relative)
         try:
-            smbclient.makedirs(smb_dir, exist_ok=exist_ok)
-            audit("make_directory", relative, "success", exist_ok=exist_ok)
-            return json.dumps({
-                "path": relative,
-                "created": True,
-            }, indent=2)
+            def _mkdir() -> str:
+                smbclient.makedirs(smb_dir, exist_ok=exist_ok)
+                audit("make_directory", relative, "success", exist_ok=exist_ok)
+                return json.dumps({
+                    "path": relative,
+                    "created": True,
+                }, indent=2)
+
+            return run_with_session_retry("make_directory", _mkdir)
         except Exception as exc:
             audit("make_directory", relative, "error")
             return sanitised_error(exc)

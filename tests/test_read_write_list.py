@@ -6,6 +6,17 @@ import uuid
 from mcp_http_client import MCPError, MCPHttpClient
 
 
+def decode_json_payload(tool_name: str, text: str):
+    try:
+        payload = json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise MCPError(f"Tool {tool_name!r} did not return JSON: {text!r}") from exc
+
+    if isinstance(payload, dict) and "error" in payload:
+        raise MCPError(f"Tool {tool_name!r} failed: {payload['error']}")
+    return payload
+
+
 def main() -> int:
     if len(sys.argv) != 2:
         print("Usage: test_read_write_list.py <mcp-endpoint-url>", file=sys.stderr)
@@ -32,7 +43,9 @@ def main() -> int:
         print(client.call_tool_text("write_file", {"path": file_path, "content": expected_content}))
 
         print(f"Listing directory {base_dir}")
-        listing = json.loads(client.call_tool_text("list_files", {"path": base_dir}))
+        listing = decode_json_payload("list_files", client.call_tool_text("list_files", {"path": base_dir}))
+        if not isinstance(listing, list):
+            raise MCPError(f"Tool 'list_files' returned unexpected payload: {listing}")
         file_names = {entry["name"] for entry in listing}
         if "hello.txt" not in file_names:
             raise MCPError(f"hello.txt not found in listing: {listing}")
@@ -45,7 +58,9 @@ def main() -> int:
             )
 
         print(f"Inspecting file {file_path}")
-        info = json.loads(client.call_tool_text("get_file_info", {"path": file_path}))
+        info = decode_json_payload("get_file_info", client.call_tool_text("get_file_info", {"path": file_path}))
+        if not isinstance(info, dict):
+            raise MCPError(f"Tool 'get_file_info' returned unexpected payload: {info}")
         if info.get("type") != "file":
             raise MCPError(f"Expected file type metadata, got: {info}")
         if "permissions" not in info:

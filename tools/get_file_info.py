@@ -6,6 +6,7 @@ import posixpath
 import smbclient
 
 from smb.helpers import smb_path
+from smb.session import run_with_session_retry
 from utils.logger import audit
 from utils.validators import check_filename_denylist, safe_relative_path, sanitised_error
 
@@ -37,33 +38,36 @@ def register(mcp) -> None:
 
         smb_target = smb_path(relative)
         try:
-            st = smbclient.stat(smb_target)
-            is_dir = smbclient.path.isdir(smb_target)
-            info = {
-                "name": posixpath.basename(relative),
-                "type": "directory" if is_dir else "file",
-                "size_bytes": st.st_size,
-                "modified_time": datetime.datetime.fromtimestamp(
-                    st.st_mtime, tz=datetime.timezone.utc
-                ).isoformat(),
-                "created_time": datetime.datetime.fromtimestamp(
-                    st.st_ctime, tz=datetime.timezone.utc
-                ).isoformat(),
-                "permissions": {
-                    "mode": oct(st.st_mode),
-                    "owner_read": bool(st.st_mode & statmod.S_IRUSR),
-                    "owner_write": bool(st.st_mode & statmod.S_IWUSR),
-                    "owner_execute": bool(st.st_mode & statmod.S_IXUSR),
-                    "group_read": bool(st.st_mode & statmod.S_IRGRP),
-                    "group_write": bool(st.st_mode & statmod.S_IWGRP),
-                    "group_execute": bool(st.st_mode & statmod.S_IXGRP),
-                    "other_read": bool(st.st_mode & statmod.S_IROTH),
-                    "other_write": bool(st.st_mode & statmod.S_IWOTH),
-                    "other_execute": bool(st.st_mode & statmod.S_IXOTH),
-                },
-            }
-            audit("get_file_info", relative, "success", file_size_bytes=st.st_size)
-            return json.dumps(info, indent=2)
+            def _stat() -> str:
+                st = smbclient.stat(smb_target)
+                is_dir = smbclient.path.isdir(smb_target)
+                info = {
+                    "name": posixpath.basename(relative),
+                    "type": "directory" if is_dir else "file",
+                    "size_bytes": st.st_size,
+                    "modified_time": datetime.datetime.fromtimestamp(
+                        st.st_mtime, tz=datetime.timezone.utc
+                    ).isoformat(),
+                    "created_time": datetime.datetime.fromtimestamp(
+                        st.st_ctime, tz=datetime.timezone.utc
+                    ).isoformat(),
+                    "permissions": {
+                        "mode": oct(st.st_mode),
+                        "owner_read": bool(st.st_mode & statmod.S_IRUSR),
+                        "owner_write": bool(st.st_mode & statmod.S_IWUSR),
+                        "owner_execute": bool(st.st_mode & statmod.S_IXUSR),
+                        "group_read": bool(st.st_mode & statmod.S_IRGRP),
+                        "group_write": bool(st.st_mode & statmod.S_IWGRP),
+                        "group_execute": bool(st.st_mode & statmod.S_IXGRP),
+                        "other_read": bool(st.st_mode & statmod.S_IROTH),
+                        "other_write": bool(st.st_mode & statmod.S_IWOTH),
+                        "other_execute": bool(st.st_mode & statmod.S_IXOTH),
+                    },
+                }
+                audit("get_file_info", relative, "success", file_size_bytes=st.st_size)
+                return json.dumps(info, indent=2)
+
+            return run_with_session_retry("get_file_info", _stat)
         except ValueError as exc:
             audit("get_file_info", relative, "denied", reason=str(exc))
             return json.dumps({"error": str(exc)})
